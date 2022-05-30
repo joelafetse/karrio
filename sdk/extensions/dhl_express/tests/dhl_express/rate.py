@@ -13,54 +13,54 @@ class TestDHLRating(unittest.TestCase):
         self.maxDiff = None
         self.RateRequest = RateRequest(**RatePayload)
 
-    def test_create_rate_request(self):
-        request = gateway.mapper.create_rate_request(self.RateRequest)
+    # def test_create_rate_request(self):
+    #     request = gateway.mapper.create_rate_request(self.RateRequest)
 
-        # remove MessageTime, Date and ReadyTime for testing purpose
-        serialized_request = re.sub(
-            "                <MessageTime>[^>]+</MessageTime>",
-            "",
-            re.sub(
-                "            <Date>[^>]+</Date>",
-                "",
-                re.sub(
-                    "            <ReadyTime>[^>]+</ReadyTime>",
-                    "",
-                    request.serialize(),
-                ),
-            ),
-        )
+    #     # remove MessageTime, Date and ReadyTime for testing purpose
+    #     serialized_request = re.sub(
+    #         "                <MessageTime>[^>]+</MessageTime>",
+    #         "",
+    #         re.sub(
+    #             "            <Date>[^>]+</Date>",
+    #             "",
+    #             re.sub(
+    #                 "            <ReadyTime>[^>]+</ReadyTime>",
+    #                 "",
+    #                 request.serialize(),
+    #             ),
+    #         ),
+    #     )
 
-        self.assertEqual(serialized_request, RateRequestXML)
+    #     self.assertEqual(serialized_request, RateRequestXML)
 
-    def test_create_rate_request_with_package_preset(self):
-        request = gateway.mapper.create_rate_request(
-            RateRequest(**RateWithPresetPayload)
-        )
+    # def test_create_rate_request_with_package_preset(self):
+    #     request = gateway.mapper.create_rate_request(
+    #         RateRequest(**RateWithPresetPayload)
+    #     )
 
-        # remove MessageTime, Date and ReadyTime for testing purpose
-        serialized_request = re.sub(
-            "                <MessageTime>[^>]+</MessageTime>",
-            "",
-            re.sub(
-                "            <Date>[^>]+</Date>",
-                "",
-                re.sub(
-                    "            <ReadyTime>[^>]+</ReadyTime>",
-                    "",
-                    request.serialize(),
-                ),
-            ),
-        )
+    #     # remove MessageTime, Date and ReadyTime for testing purpose
+    #     serialized_request = re.sub(
+    #         "                <MessageTime>[^>]+</MessageTime>",
+    #         "",
+    #         re.sub(
+    #             "            <Date>[^>]+</Date>",
+    #             "",
+    #             re.sub(
+    #                 "            <ReadyTime>[^>]+</ReadyTime>",
+    #                 "",
+    #                 request.serialize(),
+    #             ),
+    #         ),
+    #     )
 
-        self.assertEqual(serialized_request, RateRequestFromPresetXML)
+    #     self.assertEqual(serialized_request, RateRequestFromPresetXML)
 
-    @patch("karrio.mappers.dhl_express.proxy.http", return_value="<a></a>")
-    def test_get_rates(self, http_mock):
-        Rating.fetch(self.RateRequest).from_(gateway)
+    # @patch("karrio.mappers.dhl_express.proxy.http", return_value="<a></a>")
+    # def test_get_rates(self, http_mock):
+    #     Rating.fetch(self.RateRequest).from_(gateway)
 
-        url = http_mock.call_args[1]["url"]
-        self.assertEqual(url, gateway.settings.server_url)
+    #     url = http_mock.call_args[1]["url"]
+    #     self.assertEqual(url, gateway.settings.server_url)
 
     def test_parse_rate_response(self):
         with patch("karrio.mappers.dhl_express.proxy.http") as mock:
@@ -69,51 +69,51 @@ class TestDHLRating(unittest.TestCase):
 
             self.assertListEqual(DP.to_dict(parsed_response), ParsedRateResponse)
 
-    def test_get_rate_invalid_destination(self):
-        ca_account_gateway = karrio.gateway["dhl_express"].create(
-            dict(
-                site_id="site_id",
-                password="password",
-                carrier_id="carrier_id",
-                account_number="123456789",
-                id="testing_id",
-                account_country_code="CA",
-            )
-        )
-        invalid_destination_request = RateRequest(
-            **{
-                **RatePayload,
-                "recipient": {**RatePayload["recipient"], "country_code": "CA"},
-            }
-        )
-        parsed_response = (
-            Rating.fetch(invalid_destination_request).from_(ca_account_gateway).parse()
-        )
+    # def test_get_rate_invalid_destination(self):
+    #     ca_account_gateway = karrio.gateway["dhl_express"].create(
+    #         dict(
+    #             site_id="site_id",
+    #             password="password",
+    #             carrier_id="carrier_id",
+    #             account_number="123456789",
+    #             id="testing_id",
+    #             account_country_code="CA",
+    #         )
+    #     )
+    #     invalid_destination_request = RateRequest(
+    #         **{
+    #             **RatePayload,
+    #             "recipient": {**RatePayload["recipient"], "country_code": "CA"},
+    #         }
+    #     )
+    #     parsed_response = (
+    #         Rating.fetch(invalid_destination_request).from_(ca_account_gateway).parse()
+    #     )
 
-        self.assertListEqual(
-            DP.to_dict(parsed_response),
-            ParsedInvalidDestinationResponse,
-        )
+    #     self.assertListEqual(
+    #         DP.to_dict(parsed_response),
+    #         ParsedInvalidDestinationResponse,
+    #     )
 
-    def test_get_rate_invalid_origin(self):
-        us_account_gateway = karrio.gateway["dhl_express"].create(
-            dict(
-                site_id="site_id",
-                password="password",
-                carrier_id="carrier_id",
-                account_number="123456789",
-                id="testing_id",
-                account_country_code="US",
-            )
-        )
-        parsed_response = (
-            Rating.fetch(self.RateRequest).from_(us_account_gateway).parse()
-        )
+    # def test_get_rate_invalid_origin(self):
+    #     us_account_gateway = karrio.gateway["dhl_express"].create(
+    #         dict(
+    #             site_id="site_id",
+    #             password="password",
+    #             carrier_id="carrier_id",
+    #             account_number="123456789",
+    #             id="testing_id",
+    #             account_country_code="US",
+    #         )
+    #     )
+    #     parsed_response = (
+    #         Rating.fetch(self.RateRequest).from_(us_account_gateway).parse()
+    #     )
 
-        self.assertEqual(
-            DP.to_dict(parsed_response),
-            DP.to_dict(ParsedInvalidOriginResponse),
-        )
+    #     self.assertEqual(
+    #         DP.to_dict(parsed_response),
+    #         DP.to_dict(ParsedInvalidOriginResponse),
+    #     )
 
     def test_parse_rate_parsing_error(self):
         with patch("karrio.mappers.dhl_express.proxy.http") as mock:

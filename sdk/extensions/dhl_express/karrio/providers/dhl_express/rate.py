@@ -1,6 +1,6 @@
 import time
-from functools import reduce
 from typing import List, Tuple, cast, Iterable
+from schemas.dhl_express.dhl_express_lib.rating_response import RatingResponse
 from dhl_express_lib.dct_req_global_2_0 import (
     DCTRequest,
     DCTTo,
@@ -17,7 +17,7 @@ from dhl_express_lib.dct_requestdatatypes_global import DCTDutiable
 from dhl_express_lib.dct_response_global_2_0 import QtdShpType as ResponseQtdShpType
 
 from karrio.core.errors import DestinationNotServicedError, OriginNotServicedError
-from karrio.core.utils import Serializable, Element, NF, XP, DF
+from karrio.core.utils import Serializable, NF, XP, DF, DP
 from karrio.core.units import Packages, Options, Package, Services, CountryCurrency
 from karrio.core.models import RateDetails, Message, ChargeDetails, RateRequest
 from karrio.providers.dhl_express.units import (
@@ -31,30 +31,33 @@ from karrio.providers.dhl_express.units import (
 )
 from karrio.providers.dhl_express.utils import Settings
 from karrio.providers.dhl_express.error import parse_error_response
+from schemas.dhl_express.dhl_express_lib.rating_response import RatingResponse, Product
+import schemas.dhl_express.dhl_express_lib.rating_request as dhlExpress
 
 
 def parse_rate_response(
-    response: Element, settings: Settings
+    response: dict, settings: Settings
 ) -> Tuple[List[RateDetails], List[Message]]:
-    quotes = XP.find("QtdShp", response, ResponseQtdShpType)
+
     rates: List[RateDetails] = [
-        _extract_quote(quote, settings)
-        for quote in quotes
-        if (quote.ShippingCharge is not None) or (quote.ShippingCharge is not None)
+        _extract_product(data, settings) for data in response.get("products", [])
     ]
 
     return rates, parse_error_response(response, settings)
 
 
-def _extract_quote(quote: ResponseQtdShpType, settings: Settings) -> RateDetails:
-    service = ProductCode.map(quote.GlobalProductCode)
-    charges = [
-        ("Base charge", quote.WeightCharge),
-        *((s.LocalServiceTypeName, s.ChargeValue) for s in quote.QtdShpExChrg),
-    ]
+def _extract_product(data: dict, settings: Settings) -> RateDetails:
+    product = DP.to_object(Product, data)
+    service = ProductCode.map(product.productCode)
+    # charges = [
+    #     ("Base charge", quote.WeightCharge),
+    #     *((s.LocalServiceTypeName, s.ChargeValue) for s in quote.QtdShpExChrg),
+    # ]
 
-    delivery_date = DF.date(quote.DeliveryDate[0].DlvyDateTime, "%Y-%m-%d %H:%M:%S")
-    pricing_date = DF.date(quote.PricingDate)
+    delivery_date = DF.date(
+        product.deliveryCapabilities.estimatedDeliveryDateAndTime, "%Y-%m-%d %H:%M:%S"
+    )
+    pricing_date = DF.date(product.pricingDate)
     transit = (
         (delivery_date.date() - pricing_date.date()).days
         if all([delivery_date, pricing_date])
@@ -64,24 +67,24 @@ def _extract_quote(quote: ResponseQtdShpType, settings: Settings) -> RateDetails
     return RateDetails(
         carrier_name=settings.carrier_name,
         carrier_id=settings.carrier_id,
-        currency=quote.CurrencyCode,
+        # currency=quote.CurrencyCode,
         transit_days=transit,
         service=service.name_or_key,
-        total_charge=NF.decimal(quote.ShippingCharge),
-        extra_charges=[
-            ChargeDetails(
-                name=name,
-                amount=NF.decimal(amount),
-                currency=quote.CurrencyCode,
-            )
-            for name, amount in charges
-            if amount
-        ],
-        meta=dict(service_name=(service.name or quote.ProductShortName)),
+        # total_charge=NF.decimal(quote.ShippingCharge),
+        # extra_charges=[
+        #     ChargeDetails(
+        #         name=name,
+        #         amount=NF.decimal(amount),
+        #         currency=quote.CurrencyCode,
+        #     )
+        #     for name, amount in charges
+        #     if amount
+        # ],
+        meta=dict(service_name=(service.name or product.productName)),
     )
 
 
-def rate_request(payload: RateRequest, settings: Settings) -> Serializable[DCTRequest]:
+def rate_request(payload: RateRequest, settings: Settings) -> Serializable:
     packages = Packages(payload.parcels, PackagePresets, required=["weight"])
     products = [*Services(payload.services, ProductCode)]
     options = Options(payload.options, SpecialServiceCode)
@@ -211,19 +214,24 @@ def rate_request(payload: RateRequest, settings: Settings) -> Serializable[DCTRe
         ),
     )
 
-    return Serializable(request, _request_serializer, logged=True)
-
-
-def _request_serializer(request: DCTRequest) -> str:
-    namespacedef_ = (
-        'xmlns:p="http://www.dhl.com" '
-        'xmlns:p1="http://www.dhl.com/datatypes" '
-        'xmlns:p2="http://www.dhl.com/DCTRequestdatatypes" '
-        'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
-        'xsi:schemaLocation="http://www.dhl.com DCT-req.xsd "'
+    request = dhlExpress.RatingRequest(
+        customerDetails=dhlExpress.CustomerDetails(
+            shipperDetails=dhlExpress.ErDetails(
+                postalCode=payload.shipper.postal_code,
+                cityName=payload.shipper.city,
+                countryCode=payload.shipper.country_code,
+                addressLine1=payload.shipper.address_line1,
+                addressLine2=payload.shipper.address_line2,
+            ),
+            receiverDetails=dhlExpress.ErDetails(
+                postalCode=payload.recipient.postal_code,
+                cityName=payload.recipient.city,
+                countryCode=payload.recipient.country_code,
+                addressLine1=payload.recipient.address_line1,
+                addressLine2=payload.recipient.address_line2,
+            ),
+        ),
+        productCode=payload,
     )
-    return XP.export(
-        request,
-        name_="p:DCTRequest",
-        namespacedef_=namespacedef_,
-    ).replace('schemaVersion="2"', 'schemaVersion="2.0"')
+
+    return Serializable(request, DP.to_dict, logged=True)

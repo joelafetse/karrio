@@ -11,6 +11,8 @@ class AddressExtra:
     street_type: str = None
     suburb: str = None
     suite: str = None
+    type: str = None
+    strict_validation: bool = None
 
 
 @attr.s(auto_attribs=True)

@@ -20,9 +20,9 @@ class Settings(BaseSettings):
     @property
     def server_url(self):
         return (
-            "https://xmlpitest-ea.dhl.com/XMLShippingServlet"
+            "https://express.api.dhl.com/mydhlapi/test"
             if self.test
-            else "https://xmlpi-ea.dhl.com/XMLShippingServlet"
+            else "https://express.api.dhl.com/mydhlapi"
         )
 
     def Request(self, **kwargs) -> Request:
